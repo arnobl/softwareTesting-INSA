@@ -43,4 +43,14 @@ public class TestNumber {
 	void testDivideByZero() {
 		assertThrows(NumberFormatException.class, () -> nb.divide(0d));
 	}
+
+	@Test
+	void testDivideByNaN() {
+		assertThrows(NumberFormatException.class, () -> nb.divide(Double.NaN));
+	}
+
+	@Test
+	void testDivideByInfinite() {
+		assertThrows(NumberFormatException.class, () -> nb.divide(Double.POSITIVE_INFINITY));
+	}
 }
