@@ -1,0 +1,624 @@
+\documentclass{article}
+
+% To compile with xelatex only
+
+\usepackage{color}
+\usepackage[english,french]{babel}
+\usepackage{graphicx}
+\usepackage{geometry}
+\usepackage{listings}
+\usepackage{url}
+\usepackage{fontspec}
+\usepackage{mathpazo}
+\linespread{1.05}
+\newfontfamily\DejaSans{DejaVu Sans}
+\setmainfont
+     [ BoldFont       = texgyrepagella-bold.otf ,
+       ItalicFont     = texgyrepagella-italic.otf ,
+       BoldItalicFont = texgyrepagella-bolditalic.otf ]
+     {texgyrepagella-regular.otf}
+
+
+\geometry{top=4cm, bottom=2cm, left=2.5cm, right=2.5cm}
+
+\clubpenalty=10000
+\widowpenalty=10000
+\hyphenpenalty=5000
+\tolerance=1000
+
+\newcommand{\bad}{\vspace*{-0.15cm}\noindent{\huge \fontspec{DejaVu Sans} 😱}}
+\newcommand{\Bad}{\vspace*{-0.15cm}\noindent{\huge \fontspec{DejaVu Sans} ☹\\😱}}
+\newcommand{\Good}{\vspace*{-0.15cm}\noindent{\huge \fontspec{DejaVu Sans} 😃\\😍} }
+\newcommand{\good}{\vspace*{-0.15cm}\noindent{\huge \fontspec{DejaVu Sans} 😃} }
+
+\lstdefinelanguage{MyJava}{
+  frame=single,
+  escapechar=|, 
+  numbersep=5pt, 
+  numbers=none, 
+  language=java, 
+  showstringspaces=false,
+  tabsize=2,
+  basicstyle=\DejaSans\small
+}
+
+
+\title{\vspace*{-3cm}{\huge Mauvaises pratiques dans l'écriture de tests}}
+
+\author{Arnaud Blouin}
+\date{}
+
+
+\begin{document}
+
+\maketitle
+
+Les exemples de ce document sont écrits en JUnit 5 et Mockito mais les mauvaises pratiques qu'ils illustrent s'appliquent à toutes les librairies de test.
+
+
+\section*{Assertions}
+
+Parmi les mauvaises pratiques de test unitaire les plus courantes, une récurrente consiste à utiliser \emph{assertTrue} et \emph{assertFalse} à tout va.
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\Bad
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+@Test public void testSetStr() {
+  obj.setStr("foo");
+  assertTrue(pt.getStr().equals("foo"));
+}
+@Test public void testSetA() {
+  obj.setA(a);
+  assertTrue(obj.getA()==a);
+}
+\end{lstlisting}   
+\end{minipage}
+
+Ce cas simple n'est pas très grave est soit mais il existe des assertions dédiées à la comparaison d'objets. 
+La bonne pratique est donc d'utiliser ces assertions :
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\Good
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+@Test public void testSetStr() {
+  obj.setStr("foo");
+  assertEquals("foo", pt.getStr()); // La valeur attendue est à gauche en JUnit
+}
+@Test public void testSetA() {
+  obj.setA(a);
+  assertSame(a, obj.getA()); // La valeur observée est à droite
+}
+\end{lstlisting}   
+\end{minipage}
+
+Attention au test de valeurs flottantes :
+la comparaison de valeurs flottantes (\emph{double} en Java, mais pas de problème avec \emph{float}) n'est pas exacte.
+Il faut utiliser un delta de tolérance.
+Donc à la place du code suivant :
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\Bad
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+@Test public void testSetX() {
+  pt.setX(10.0);
+  assertEquals(10.0, pt.getX());
+}
+\end{lstlisting}   
+\end{minipage}
+
+\noindent il faut écrire :
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\Good
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+@Test public void testSetX() {
+  pt.setX(10.0);
+  assertTrue(10.0, pt.getX(), 0.00001); // Troisième argument : delta tolérance
+}
+\end{lstlisting}
+\end{minipage}
+
+
+% \noindent Pour faire échouer un test (à utiliser très rarement), ne pas écrire :
+%
+% \medskip
+% \begin{minipage}{0.07\textwidth}
+% \bad
+% \end{minipage}%
+% \begin{minipage}{0.9\textwidth}
+% \begin{lstlisting}[language=MyJava]
+% assertEquals(true, false);
+% \end{lstlisting}
+% \end{minipage}
+%
+% \noindent mais:
+%
+% \medskip
+% \begin{minipage}{0.07\textwidth}
+% \good
+% \end{minipage}%
+% \begin{minipage}{0.9\textwidth}
+% \begin{lstlisting}[language=MyJava]
+% fail();
+% \end{lstlisting}
+% \end{minipage}
+
+Il n'existe pas, et à raison, d'assertion "\emph{success}" :
+si aucune assertion n'échoue ou si aucune exception n'est levée, alors le test passe automatiquement.
+Vous ne devez donc pas écrire quelque chose du style :
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\bad
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+assertTrue(true);
+\end{lstlisting}
+\end{minipage}
+
+\noindent ou :
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\bad
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+assertEquals(true, true);
+\end{lstlisting}
+\end{minipage}
+
+Il existe beaucoup d'assertions, cf : 
+\url{http://junit.sourceforge.net/javadoc/org/junit/Assert.html}.
+Ne pas utiliser la bonne assertion est une mauvaise pratique.
+Par exemple :
+% There exists plenty of assertion methods.
+% See: \url{http://junit.sourceforge.net/javadoc/org/junit/Assert.html}.
+% Bad testing practices consist in not using the correct assertion method.
+% For example:
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\bad
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+assertTrue(a!=b);
+\end{lstlisting}
+\end{minipage}
+
+\noindent À la place :
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\good
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+assertNotEquals(a, b);
+\end{lstlisting}
+\end{minipage}
+
+\noindent Un autre exemple, l'assertion :
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\bad
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+assertTrue(a!=null);
+\end{lstlisting}
+\end{minipage}
+
+\noindent devrait être écrite :
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\good
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+assertNotNull(a);
+\end{lstlisting}
+\end{minipage}
+
+Les assertions \emph{assertTrue} et \emph{assertFalse} soit utilisées pour tester des expressions booléennes. 
+L'utilisation d'opérateurs à l'intérieur d'une expression d'une assertion (exemple: \texttt{assertTrue(a==b)}) est une mauvaise pratique : vous n'utilisez pas la bonne assertion.
+
+
+Autres mauvaises pratiques : 
+\textbf{mauvaise utilisation du \emph{try / catch} dans un test unitaire qui peut lever des exceptions}.
+
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\Bad
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+@Test
+public void testHorizontalSymmetryException() {
+  try{
+    pt.horizontalSymmetry(null);
+    fail();
+  }catch(IllegalArgumentException e) {
+  // OK
+  }
+}
+\end{lstlisting}
+\end{minipage}
+
+
+Si le test ci­-dessus est correct, JUnit fournit une fonctionnalité pour éviter cette
+lourdeur syntaxique : le paramètre \emph{excepted} de l'annotation \emph{@Test} :
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\Good
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+@Test
+public void testHorizontalSymmetryException() {
+  assertThrows(IllegalArgumentException.class, ()-> pt.horizontalSymmetry(null));
+}
+\end{lstlisting}
+\end{minipage}
+
+\noindent Autre mauvaise pratique concernant les exceptions :
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\Bad
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+@Test
+public void testHorizontalSymmetry() {
+  try{
+    pt.horizontalSymmetry(new Point(1,2));
+  }catch(IllegalArgumentException e) {
+    fail();
+  }
+}
+\end{lstlisting}
+\end{minipage}
+
+Le \emph{try / catch} du test ci­-dessus est inutile. Il suffit de déclarer l'exception au niveau
+du prototype du test. Ainsi, si une exception est levée le test JUnit sera marqué comme ayant échoué.
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\Good
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+@Test
+public void testHorizontalSymmetry() throws IllegalArgumentException {
+  pt.horizontalSymmetry(new Point(1,2));
+}
+\end{lstlisting}
+\end{minipage}
+
+
+Il est également inutile de vérifier l'instanciation d'un objet. Ici, \texttt{p} est forcement non nul.
+Le test suivant peut donc est supprimé :
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\Bad
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+@Test
+public void testPointNotNullWhenCreated() throws IllegalArgumentException {
+  pt = new Point();
+  assertNotNull(p);
+}
+\end{lstlisting}
+\end{minipage}
+
+
+\section*{Test fixture}
+
+Au niveau de la classe de tests, une mauvaise pratique consiste à avoir du code dupliqué dans chaque test :
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\Bad
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+public class TestPoint {
+   @Test
+   public void testHorizontalSymmetry() throws IllegalArgumentException {
+     Point pt = new Point();
+     pt.horizontalSymmetry(new Point(1,2));
+   }
+   @Test public void testSetGetX() {
+     Point pt = new Point();
+     pt.setX(10.0);
+     assertEquals(10.0, pt.getX(), 0.001);
+   }
+   @Test public void testSetGetY() {
+     Point pt = new Point();
+     pt.setY(10.0);
+     assertEquals(10.0, pt.getY(), 0.001);
+   }
+}
+
+\end{lstlisting}
+\end{minipage}
+
+Dans le code ci-dessus, la déclaration et l'initialisation d'un objet est dupliquée dans chaque test.
+Dans ce cas il faut utiliser la méthode "\emph{@BeforeEach}" comme le montre le code suivant :
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\Good
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+public class TestPoint {
+   Point pt;
+   
+   @BeforeEach
+   public void setUp() {
+     pt = new Point();
+   }
+   @Test
+   public void testHorizontalSymmetry() throws IllegalArgumentException {
+     pt.horizontalSymmetry(new Point(1,2));
+   }
+   @Test public void testSetGetX() {
+     pt.setX(10.0);
+     assertEquals(10.0, pt.getX(), 0.001);
+   }
+   @Test public void testSetGetY() {
+     pt.setY(10.0);
+     assertEquals(10.0, pt.getY(), 0.001);
+   }
+}
+
+\end{lstlisting}
+\end{minipage}
+
+
+\noindent Concernant la méthode \emph{@BeforeEach}, attention à ne pas écrire :
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\Bad
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+@BeforeEach
+public void setUp() {
+  Point pt = new Point();
+}
+\end{lstlisting}
+\end{minipage}
+
+La variable \emph{pt} est dans ce cas local et donc pas accessible pour les tests (exemple vu de nombreuses fois dans les copies...).
+Il ne faut également pas écrire :
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\Bad
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+public class TestPoint {
+   Point pt = new Point();
+
+   @Test
+   public void testHorizontalSymmetry() throws IllegalArgumentException {
+     pt.horizontalSymmetry(new Point(1,2));
+   }
+   @Test public void testSetGetX() {
+     pt.setX(10.0);
+     assertEquals(10.0, pt.getX(), 0.001);
+   }
+   @Test public void testSetGetY() {
+     pt.setY(10.0);
+     assertEquals(10.0, pt.getY(), 0.001);
+   }
+}
+\end{lstlisting}
+\end{minipage}
+
+En effet, cela peut éventuellement fonctionner mais il faut laisser le travail de l'initialisation des tests à JUnit via la méthode \emph{@BeforeEach}.
+
+\newpage
+
+\section*{Structure des tests}
+
+
+Autre mauvaise pratique plus compliquée, \textbf{écrire plusieurs tests dans une unique méthode de test} :
+
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\Bad
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+@Test public void testSetGetXY() {
+  pt.setX(10.0);
+  assertEquals(10.0, pt.getX(), 0.001);
+  pt.setY(10.0);
+  assertEquals(10.0, pt.getY(), 0.001);
+}
+\end{lstlisting}
+\end{minipage}
+
+\noindent Il faut ici écrire deux tests unitaires séparés :
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\Good
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+@Test public void testSetGetX() {
+  pt.setX(10.0);
+  assertEquals(10.0, pt.getX(), 0.001);
+}
+@Test public void testSetGetY() {
+  pt.setY(10.0);
+  assertEquals(10.0, pt.getY(), 0.001);
+}
+\end{lstlisting}
+\end{minipage}
+
+L'avantage serait d'améliorer la lecture des tests et surtout de faciliter le débogage : 
+dans le cas du mauvais exemple, si  l'assertion sur \emph{setX} ne passe pas, le test sur \emph{setY} n'est pas exécuté, ce qui n'est pas cohérent.
+Il en est de même avec l'exemple suivant :
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\Bad
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+@Test public void testSetGetValue() {
+  pt.setValue(10.0);
+  assertEquals(10.0, pt.getValue(), 0.001);
+  pt.setValue(-1.0); // value cannot be negative
+  assertEquals(10.0, pt.getValue(), 0.001);
+}
+\end{lstlisting}
+\end{minipage}
+
+Deux tests sont présents dans le code ci-dessus :
+le test nominal (bon fonctionnement) ;
+le test du cas d'erreur de valeur négative (dans l'exemple \emph{setValue} ne fait rien si la valeur est négative).
+Il faut séparer ces deux tests :
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\Good
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+@Test public void testSetGetValueOK() {
+  pt.setValue(10.0);
+  assertEquals(10.0, pt.getValue(), 0.001);
+}
+@Test public void testSetGetValueKONegValue() {
+  pt.setValue(10.0);
+  pt.setValue(-1.0); // value cannot be negative
+  assertEquals(10.0, pt.getValue(), 0.001);
+}
+\end{lstlisting}
+\end{minipage}
+
+\newpage
+
+\section*{Mock}
+
+Concernant les mocks. Il n'y a aucun intérêt à simuler l'objet que l'on teste.
+Le but des mocks est de casser des dépendances à l'aide de marionnettes (les mocks donc) que vous contrôlez.
+Le code suivant n'a donc pas de sens :
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\Bad
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+public class TestPoint {
+   Point pt;
+
+   @BeforeEach
+   public void setUp() {
+     pt = Mockito.mock(Point.class);
+     Mockito.when(pt.getX()).thenReturn(10.0);
+   }
+   @Test public void testSetGetX() {
+     assertEquals(10.0, pt.getX(), 0.001);
+   }
+}
+\end{lstlisting}
+\end{minipage}
+
+Autre erreur, mois dramatique que la précédente :
+créer une classe pour pouvoir mocker une interface.
+Cela n'est pas nécessaire car le mocking fonctionne également avec une interface sans implémentation (c'est un de ses buts).
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\Bad
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+interface Vector {
+   double getTx();
+}
+
+public class TestPoint {
+   Point pt;
+   VectorImpl v;
+
+   static class VectorImpl implements Vector {
+      public double getTx() { return 0; }
+   }
+
+   @BeforeEach
+   public void setUp() {
+     v = Mockito.mock(VectorImpl.class);
+     Mockito.when(v.getTx()).thenReturn(10.0);
+     pt = new Point(v);
+   }
+}
+\end{lstlisting}
+\end{minipage}
+
+\newpage
+
+Il faut donc simplifier le code précédent pour obtenir le code suivant.
+À noter que la classe \texttt{VectorImpl} est ce que l'on appelle un \emph{stub} (une fausse classe codée par le testeur) et peut être remplacée
+par un mock : moins verbeux, plus flexible.
+
+\medskip
+\begin{minipage}{0.07\textwidth}
+\Bad
+\end{minipage}%
+\begin{minipage}{0.9\textwidth}
+\begin{lstlisting}[language=MyJava]
+interface Vector {
+   double getTx();
+}
+
+public class TestPoint {
+   Point pt;
+   Vector v;
+   
+   @BeforeEach
+   public void setUp() {
+     v = Mockito.mock(Vector.class);
+     // Même s'il s'agit d'une interface,
+     // il faut écrire Vector.class et non Vector.interface
+     Mockito.when(v.getTx()).thenReturn(10.0);
+     pt = new Point(v);
+   }
+}
+\end{lstlisting}
+\end{minipage}
+
+
+\end{document}
